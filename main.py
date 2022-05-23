@@ -18,7 +18,7 @@ app.add_middleware(
 )
 
 class User(BaseModel):
-    email: str
+    username: str
 
 class UserDB(User):
     password: str
@@ -32,29 +32,29 @@ async def shutdown():
     await database.disconnect()
 
 @manager.user_loader()
-async def load_user(email: str):
-    query = users.select().where(users.c.email == email)
+async def load_user(username: str):
+    query = users.select().where(users.c.username == username)
     return await database.fetch_one(query)
 
 @app.post('/auth/token')
 async def login(data: OAuth2PasswordRequestForm = Depends()):
-    email = data.username
+    username = data.username
     password = data.password
 
-    user = await load_user(email)
+    user = await load_user(username)
     if not user:
         raise InvalidCredentialsException
     elif password != user['password']:
         raise InvalidCredentialsException
     
     access_token = manager.create_access_token(
-        data=dict(sub=email)
+        data=dict(sub=username)
     )
     return {'access_token': access_token, 'token_type': 'bearer'}
 
 @app.post('/register', response_model=User, status_code = status.HTTP_201_CREATED)
 async def register(user: UserDB):
-    query = users.insert().values(email=user.email, password=user.password)
+    query = users.insert().values(username=user.username, password=user.password)
     last_user_id = await database.execute(query)
     return {**user.dict(), "id": last_user_id}
 
