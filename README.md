@@ -37,6 +37,11 @@ sudo service nginx stop
 
 Make sure your Nginx configuration at /etc/nginx/sites-enabled/ is correctly set up.
 
+Create a docker network for the containers to communicate.
+```
+docker network create nginx-proxy
+```
+
 Run:
 ```
 docker-compose up -d (For detached mode)
