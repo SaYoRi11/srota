@@ -6,7 +6,6 @@ services:
       dockerfile: Dockerfile
     volumes:
       - ./:/app
-    command: uvicorn main:app --reload --workers 1 --host 0.0.0.0 --port 8000
     ports:
       - 8000:8000
     environment:
@@ -31,6 +30,29 @@ services:
       - POSTGRES_PASSWORD
     ports:
       - 5432:5432
+    networks:
+      - nginx-proxy
+
+  db_backup:
+    image: prodrigestivill/postgres-backup-local
+    restart: always
+    volumes:
+      - ./backup:/backups
+    links:
+      - db:db
+    depends_on:
+      - db
+    environment:
+      - POSTGRES_HOST=${HOST_SERVER}
+      - POSTGRES_DB=${DATABASE_NAME} 
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_EXTRA_OPTS=-Z9 --schema=public --blobs
+      - SCHEDULE=@daily
+      - BACKUP_KEEP_DAYS=7
+      - BACKUP_KEEP_WEEKS=4
+      - BACKUP_KEEP_MONTHS=6
+      - HEALTHCHECK_PORT=81
     networks:
       - nginx-proxy
       
