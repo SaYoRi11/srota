@@ -1,6 +1,6 @@
 __pycache__/
 api/__pycache__/
-venv/
+api/venv/
 .env
 /volumes
 backup/

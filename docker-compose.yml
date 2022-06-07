@@ -6,6 +6,7 @@ services:
       dockerfile: Dockerfile
     volumes:
       - ./:/app
+    command: uvicorn main:app --host 0.0.0.0 --reload
     ports:
       - 8000:8000
     environment:
@@ -87,5 +88,4 @@ volumes:
 
 networks:
   nginx-proxy:
-    external:
-      name: nginx-proxy
+    name: nginx-proxy
