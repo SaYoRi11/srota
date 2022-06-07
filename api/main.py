@@ -76,8 +76,6 @@ async def get_series(
     location:str = '', 
     date_start:str = '', 
     date_end:str = '', 
-    age_start:int = None,
-    age_end:int = None,
     driver_fled:bool = False, 
     caused_death:bool = False,
     desc:bool = True,
@@ -106,7 +104,7 @@ async def get_series(
             date["range"]["published_at"]["lte"] = date_end
         search_body.append(date)
 
-    if driver_fled or caused_death or age_start or age_end:
+    if driver_fled or caused_death:
         nested = {
                 "nested": {
                     "path": "graph",
