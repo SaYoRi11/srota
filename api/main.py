@@ -7,9 +7,10 @@ from pydantic import BaseModel
 from fastapi_login.exceptions import InvalidCredentialsException
 from fastapi.security import OAuth2PasswordRequestForm
 from typing import Union
+import bcrypt
 
 from db import database, users
-from utils import get_es
+from utils import get_es, get_hashed_password, check_password
 
 tags_metadata = [
     {
@@ -33,6 +34,7 @@ app = FastAPI(
     openapi_tags=tags_metadata
 )
 manager = LoginManager(str(os.environ.get('SECRET_KEY')), token_url='/auth/token')
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -68,7 +70,7 @@ async def login(data: OAuth2PasswordRequestForm = Depends()):
     user = await load_user(username)
     if not user:
         raise InvalidCredentialsException
-    elif password != user['password']:
+    elif not check_password(password, user['password']):
         raise InvalidCredentialsException
     
     access_token = manager.create_access_token(
@@ -78,7 +80,7 @@ async def login(data: OAuth2PasswordRequestForm = Depends()):
 
 @app.post('/register', response_model=User, status_code = status.HTTP_201_CREATED, tags=["auth"])
 async def register(user: UserDB):
-    query = users.insert().values(username=user.username, password=user.password)
+    query = users.insert().values(username=user.username, password=get_hashed_password(user.password))
     last_user_id = await database.execute(query)
     return {**user.dict(), "id": last_user_id}
 
@@ -94,12 +96,12 @@ async def get_series(
     series_id:str, 
     start:int = 0, 
     limit:int = 100, 
-    location: Union[str, None] = Query(default=None, example='Kathmandu', max_length=50), 
-    date_start: Union[str, None] = Query(default=None, example='2017-01-01 00:00:00'), 
-    date_end: Union[str, None] = Query(default=None, example='2020-01-01 00:00:00'), 
+    location:Union[str, None] = Query(default=None, example='Kathmandu', max_length=50), 
+    date_start:Union[str, None] = Query(default=None, example='2017-01-01 00:00:00'), 
+    date_end:Union[str, None] = Query(default=None, example='2020-01-01 00:00:00'), 
     driver_fled:bool = False, 
     caused_death:bool = False,
-    desc:bool = True,
+    desc:bool = Query(default=False, description='Sort on the basis of published date by descending or ascending order.'),
     user=Depends(manager)
 ):
     es = get_es()
