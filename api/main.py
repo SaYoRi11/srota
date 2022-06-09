@@ -99,6 +99,9 @@ async def get_series(
     location:Union[str, None] = Query(default=None, example='Kathmandu', max_length=50), 
     date_start:Union[str, None] = Query(default=None, example='2017-01-01 00:00:00'), 
     date_end:Union[str, None] = Query(default=None, example='2020-01-01 00:00:00'), 
+    age_start:Union[int, None] = Query(default=None),
+    age_end:Union[int, None] = Query(default=None),
+    gender:Union[str, None] = Query(default=None, example="M"),
     driver_fled:bool = False, 
     caused_death:bool = False,
     desc:bool = Query(default=False, description='Sort on the basis of published date by descending or ascending order.'),
@@ -127,7 +130,7 @@ async def get_series(
             date["range"]["published_at"]["lte"] = date_end
         search_body.append(date)
 
-    if driver_fled or caused_death:
+    if driver_fled or caused_death or age_start or age_end:
         nested = {
                 "nested": {
                     "path": "graph",
@@ -136,8 +139,7 @@ async def get_series(
                             "must": []
                         }
                     }
-                }
-            
+                }       
         }
         if driver_fled:
             nested['nested']['query']['bool']['must'].append({
@@ -149,6 +151,28 @@ async def get_series(
             nested['nested']['query']['bool']['must'].append({
                                 "match": {
                                     "graph.onto:caused": "srota:Death"
+                                }
+                            })
+        if age_start:
+            nested['nested']['query']['bool']['must'].append({
+                                "range": {
+                                    "graph.foaf:age": {
+                                        "gte": age_start
+                                    }
+                                }
+                            })
+        if age_end:
+            nested['nested']['query']['bool']['must'].append({
+                                "range": {
+                                    "graph.foaf:age": {
+                                        "lte": age_end
+                                    }
+                                }
+                            })
+        if gender:
+            nested['nested']['query']['bool']['must'].append({
+                                "match": {
+                                    "graph.foaf:gender": gender
                                 }
                             })
         search_body.append(nested)

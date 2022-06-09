@@ -18,6 +18,8 @@ services:
       - SECRET_KEY
       - VIRTUAL_HOST
       - LETSENCRYPT_HOST
+      - ELASTIC_URI
+      - ELASTIC_PASSWORD
     depends_on:
       - db
     networks:

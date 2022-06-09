@@ -8,7 +8,7 @@ cffi==1.15.0
 click==8.1.2
 databases==0.5.5
 elastic-transport==8.1.2
-elasticsearch==8.2.2
+elasticsearch==7.9.1
 fastapi==0.75.1
 fastapi-login==1.8.0
 greenlet==1.1.2
