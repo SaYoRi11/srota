@@ -1,16 +1,37 @@
 import os
 
-from fastapi import FastAPI, status, Depends
+from fastapi import FastAPI, status, Depends, Query
 from fastapi_login import LoginManager
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from fastapi_login.exceptions import InvalidCredentialsException
 from fastapi.security import OAuth2PasswordRequestForm
+from typing import Union
 
 from db import database, users
 from utils import get_es
 
-app = FastAPI()
+tags_metadata = [
+    {
+        "name": "test",
+        "description": "Test if the API is working correctly"
+    },
+    {
+        "name": "auth",
+        "description": "Register and authentication endpoints"
+    },
+    {
+        "name": "series",
+        "description": "Get the series by series id and filter using different queries."
+    }
+]
+
+app = FastAPI(
+    title="Srota",
+    description="Srota API",
+    version="1.0.0",
+    openapi_tags=tags_metadata
+)
 manager = LoginManager(str(os.environ.get('SECRET_KEY')), token_url='/auth/token')
 app.add_middleware(
     CORSMiddleware,
@@ -39,7 +60,7 @@ async def load_user(username: str):
     query = users.select().where(users.c.username == username)
     return await database.fetch_one(query)
 
-@app.post('/auth/token')
+@app.post('/auth/token', tags=["auth"])
 async def login(data: OAuth2PasswordRequestForm = Depends()):
     username = data.username
     password = data.password
@@ -55,27 +76,27 @@ async def login(data: OAuth2PasswordRequestForm = Depends()):
     )
     return {'access_token': access_token, 'token_type': 'bearer'}
 
-@app.post('/register', response_model=User, status_code = status.HTTP_201_CREATED)
+@app.post('/register', response_model=User, status_code = status.HTTP_201_CREATED, tags=["auth"])
 async def register(user: UserDB):
     query = users.insert().values(username=user.username, password=user.password)
     last_user_id = await database.execute(query)
     return {**user.dict(), "id": last_user_id}
 
 
-@app.get("/")
+@app.get("/", tags=["test"])
 async def read_root(user=Depends(manager)):
     es = get_es()
     if es.ping():
         return {"Hello": "World"}
 
-@app.get("/series/{series_id}")
+@app.get("/series/{series_id}", tags=["series"])
 async def get_series(
     series_id:str, 
     start:int = 0, 
     limit:int = 100, 
-    location:str = '', 
-    date_start:str = '', 
-    date_end:str = '', 
+    location: Union[str, None] = Query(default=None, example='Kathmandu', max_length=50), 
+    date_start: Union[str, None] = Query(default=None, example='2017-01-01 00:00:00'), 
+    date_end: Union[str, None] = Query(default=None, example='2020-01-01 00:00:00'), 
     driver_fled:bool = False, 
     caused_death:bool = False,
     desc:bool = True,
@@ -147,4 +168,4 @@ async def get_series(
 		'from': start,
 		'size': min(1000, limit)
     })
-    return res["hits"]["hits"]
+    return res["hits"]
