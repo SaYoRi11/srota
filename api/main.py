@@ -1,4 +1,5 @@
 import os
+from urllib.request import Request
 
 from fastapi import FastAPI, status, Depends, Query
 from fastapi_login import LoginManager
@@ -102,13 +103,16 @@ async def get_series(
     age_start:Union[int, None] = Query(default=None),
     age_end:Union[int, None] = Query(default=None),
     gender:Union[str, None] = Query(default=None, example="M"),
+    no_people:Union[int, None] = Query(default=None, description="Search for accidents involving at least n number of people."),
     driver_fled:bool = False, 
     caused_death:bool = False,
     desc:bool = Query(default=False, description='Sort on the basis of published date by descending or ascending order.'),
-    user=Depends(manager)
+    user=Depends(manager),
+    
 ):
     es = get_es()
     search_body = []
+    min_score = 0
 
     if location:
         search_body.append({
@@ -117,8 +121,38 @@ async def get_series(
                         "fields": ["locations.primary.name", "locations.primary.province.name", "locations.primary.district.name"]
                     }
         })
+        min_score = min_score + 1
+    
+    if no_people:
+        min_score = min_score + 1
+        search_body.append({
+    "function_score": {
+      "query": {
+        "nested": {
+          "path": "graph",
+          "query": {
+            "exists": {
+              "field": "graph.foaf:age"
+            }
+          },
+          "score_mode": "sum"
+        }
+      },
+      "functions": [
+        {
+          "script_score": {
+            "script": {
+              "source": f"_score >= {no_people} ? 1 : 0"
+            }
+          }
+        }
+      ],
+      "boost_mode": "replace"
+    }
+  })
 
     if date_start or date_end:
+        min_score = min_score + 1
         date = {
                 "range": {
                     "published_at": {}
@@ -130,7 +164,8 @@ async def get_series(
             date["range"]["published_at"]["lte"] = date_end
         search_body.append(date)
 
-    if driver_fled or caused_death or age_start or age_end:
+    if driver_fled or caused_death or age_start or age_end or gender:
+        min_score = min_score + 1
         nested = {
                 "nested": {
                     "path": "graph",
@@ -175,8 +210,10 @@ async def get_series(
                                     "graph.foaf:gender": gender
                                 }
                             })
+
         search_body.append(nested)
-        
+         
+    print(search_body)
     res = es.search({
         "query": {
             "bool": {
@@ -192,6 +229,7 @@ async def get_series(
 				{'published_at': {'order': 'desc' if desc else 'asc'}}
 			],
 		'from': start,
-		'size': min(1000, limit)
+		'size': min(1000, limit),
+        "min_score": min_score
     })
     return res["hits"]
