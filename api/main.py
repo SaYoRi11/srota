@@ -1,7 +1,6 @@
 import os
-from urllib.request import Request
 
-from fastapi import FastAPI, status, Depends, Query
+from fastapi import FastAPI, status, Depends, Query, Request
 from fastapi_login import LoginManager
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -92,8 +91,9 @@ async def read_root(user=Depends(manager)):
     if es.ping():
         return {"Hello": "World"}
 
-@app.get("/series/{series_id}", tags=["series"])
+@app.post("/series/{series_id}", tags=["series"])
 async def get_series(
+    request: Request,
     series_id:str, 
     start:int = 0, 
     limit:int = 100, 
@@ -104,8 +104,6 @@ async def get_series(
     age_end:Union[int, None] = Query(default=None),
     gender:Union[str, None] = Query(default=None, example="M"),
     no_people:Union[int, None] = Query(default=None, description="Search for accidents involving at least n number of people."),
-    driver_fled:bool = False, 
-    caused_death:bool = False,
     desc:bool = Query(default=False, description='Sort on the basis of published date by descending or ascending order.'),
     user=Depends(manager),
     
@@ -113,6 +111,7 @@ async def get_series(
     es = get_es()
     search_body = []
     min_score = 0
+    body = await request.json()
 
     if location:
         search_body.append({
@@ -164,9 +163,7 @@ async def get_series(
             date["range"]["published_at"]["lte"] = date_end
         search_body.append(date)
 
-    if driver_fled or caused_death or age_start or age_end or gender:
-        min_score = min_score + 1
-        nested = {
+    nested = {
                 "nested": {
                     "path": "graph",
                     "query": {
@@ -176,18 +173,19 @@ async def get_series(
                     }
                 }       
         }
-        if driver_fled:
+    if body:
+        for field in body:
             nested['nested']['query']['bool']['must'].append({
                                 "match": {
-                                    "graph.onto:driverFled": True
+                                    field: body[field]
                                 }
                             })
-        if caused_death:
-            nested['nested']['query']['bool']['must'].append({
-                                "match": {
-                                    "graph.onto:caused": "srota:Death"
-                                }
-                            })
+        search_body.append(nested)
+
+
+    if age_start or age_end or gender:
+        min_score = min_score + 1
+
         if age_start:
             nested['nested']['query']['bool']['must'].append({
                                 "range": {
